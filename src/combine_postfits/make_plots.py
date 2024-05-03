@@ -392,6 +392,7 @@ def main():
                     lumi=args.lumi,
                     pub=args.pub,
                     year=args.year,
+                    fontsize=21,
                 )
 
                 # Sci notat

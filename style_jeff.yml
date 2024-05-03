@@ -6,22 +6,32 @@ total_signal:
   label: Signal
   color: '#e42536'
   hatch: null
-zqq:
-  label: $Z(q\bar{q})$
-  color: '#3f90da'
+# Simple
+hbb:
+  label: $H(b\bar{b})$
+  color: '#92dadd'
   hatch: null
 wqq:
   label: $W(q\bar{q})$
   color: '#ffa90e'
   hatch: null
-tt:
-  label: $t\bar{t}$
-  color: '#bd1f01'
+zqq:
+  label: $Z(q\bar{q})$
+  color: '#3f90da'
   hatch: null
-st:
-  label: Single-t
-  color: '#94a4a2'
+# Compounds
+zbb:
+  label: $Z(b\bar{b})$
+  color: '#54c200'
   hatch: null
+# Compounds
+vlep:
+  label: V(lep.)
+  color: '#7f34f7'
+  hatch: null
+  contains:
+  - dy
+  - wlnu 
 top:
   label: Top
   color: '#832db6'
@@ -29,23 +39,105 @@ top:
   contains:
   - tt
   - st
-dy:
-  label: DY
-  color: '#a96b59'
-  hatch: null
-wlnu:
-  label: $W(\ell\nu)$
-  color: '#e76300'
-  hatch: null
-hbb:
-  label: $H(b\bar{b})$
-  color: '#b9ac70'
-  hatch: null
+
+
 qcd:
   label: QCD
   color: gray
   hatch: null
+2017_qcd:
+  label: QCD
+  color: gray
+  hatch: null
+2016_qcd:
+  label: QCD
+  color: gray
+  hatch: null
+2016APV_qcd:
+  label: QCD
+  color: gray
+  hatch: null
+2018_qcd:
+  label: QCD
+  color: gray
+  hatch: null
+
+# Signals on the bottom
+m50:
+  label: $Z'_{50}(q\bar{q})$
+  color: '#0ec28f'
+  hatch: null
+b50:
+  label: $Z'_{50}(b\bar{b})$
+  color: '#e42000'
+  hatch: null
+m55:
+  label: $Z'_{55}(q\bar{q})$
+  color: '#0ec28f'
+  hatch: null
+b55:
+  label: $Z'_{55}(b\bar{b})$
+  color: '#e42000'
+  hatch: null
+m90:
+  label: $Z'_{90}(q\bar{q})$
+  color: '#0ec28f'
+  hatch: null
+b90:
+  label: $Z'_{90}(b\bar{b})$
+  color: '#e42000'
+  hatch: null
+m125:
+  label: $Z'_{125}(q\bar{q})$
+  color: '#0ec28f'
+  hatch: null
+b125:
+  label: $Z'_{125}(b\bar{b})$
+  color: '#e42000'
+  hatch: null
+m75:
+  label: $Z'_{75}(q\bar{q})$
+  color: '#0ec28f'
+  hatch: null
+b75:
+  label: $Z'_{75}(b\bar{b})$
+  color: '#e42000'
+  hatch: null
+m175:
+  label: $Z'_{175}(q\bar{q})$
+  color: '#0ec28f'
+  hatch: null
+b175:
+  label: $Z'_{175}(b\bar{b})$
+  color: '#e42000'
+  hatch: null
 m150:
   label: $Z'_{150}(q\bar{q})$
+  color: '#0ec28f'
+  hatch: null
+b150:
+  label: $Z'_{150}(b\bar{b})$
+  color: '#e42000'
+  hatch: null
+m200:
+  label: $Z'_{200}(q\bar{q})$
   color: '#e42536'
   hatch: null
+
+# Unused
+#tt:
+#  label: $t\bar{t}$
+#  color: '#bd1f01'
+#  hatch: null
+#st:
+#  label: Single-t
+#  color: '#94a4a2'
+#  hatch: null
+#dy:
+#  label: DY
+#  color: '#a96b59'
+#  hatch: null
+#wlnu:
+#  label: $W(\ell\nu)$
+#  color: '#e76300'
+#  hatch: null
