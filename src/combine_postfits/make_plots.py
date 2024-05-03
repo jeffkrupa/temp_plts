@@ -1,5 +1,4 @@
 import os
-import ROOT as r
 import numpy as np
 import uproot
 import logging
@@ -9,6 +8,7 @@ import matplotlib
 from multiprocessing import Process, Semaphore
 import time
 import fnmatch
+import importlib.util
 
 matplotlib.use("Agg")
 import mplhep as hep
@@ -25,10 +25,28 @@ from rich.progress import (
     MofNCompleteColumn,
     TimeRemainingColumn,
     TimeElapsedColumn,
+    SpinnerColumn
 )
 from rich.prompt import Confirm
 
+
+ROOT_spec = importlib.util.find_spec("ROOT")
+ROOT_AVAILABLE = ROOT_spec is not None
+if ROOT_AVAILABLE:
+    import ROOT as r
+
 hep.style.use("CMS")
+
+
+def time_check(progress, procs, limit=5):
+    if progress.tasks[0].elapsed//60 >= limit:
+        logging.error(f"Plotting taking longer than {limit} minutes. Likely and issue with file opening or too many figures. Try rerunning or running with `--p 0`.")
+        remaining_procs = [p for p in procs if p.is_alive()]
+        logging.error(f"Terminating remaining plot processes: {[p.name for p in remaining_procs]}")
+        for p in remaining_procs:
+            p.terminate()
+        import sys
+        sys.exit()
 
 
 def str2bool(v):
@@ -98,7 +116,7 @@ def main():
         "--project_signals",
         default=None,
         dest="project_signals",
-        help="Comma-separated list of values of equal length with --sigs, e.g. `1,1`",
+        help="Comma-separated list of values of equal length with --sigs, e.g. `1,1`.",
     )
     parser.add_argument(
         "--bkgs",
@@ -205,15 +223,25 @@ def main():
         type=str,
         help="CMS Label",
     )
+    parser.add_argument(
+        "--dpi",
+        default=300,
+        type=int,
+        help="dpi for png format",
+    )
+    parser.add_argument("--noroot", action="store_true", help="Skip ROOT dependency")
 
     # Debug
-    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
-    parser.add_argument("--debug", "-vv", action="store_true", help="Debug logging")
+    parser.add_argument("--verbose", "-v", "-_v", action="store_true", help="Verbose logging")
+    parser.add_argument("--debug", "-vv", "--vv", action="store_true", help="Debug logging")
     parser.add_argument(
         "-p",
-        action="store_true",
+        nargs='?', 
+        default=0, 
+        const=10,
+        type=int,
         dest="multiprocessing",
-        help="Use multiprocessing to make plots. May fail due to parallel reads from fitDiag.",
+        help="Use multiprocessing to make plots. May fail due to parallel reads from fitDiag. `-p` defaults to 10 processes.",
     )
     args = parser.parse_args()
 
@@ -252,13 +280,13 @@ def main():
 
     # Make plots
     fd = uproot.open(args.input)
-    rfd = r.TFile.Open(args.input)
+    if ROOT_AVAILABLE and not args.noroot:
+        rfd = r.TFile.Open(args.input)
+    else:
+        rfd = None
     if args.style is not None:
         with open(args.style, "r") as stream:
-            try:
-                style = yaml.safe_load(stream)
-            except yaml.YAMLError as exc:
-                print(exc)
+            style = yaml.safe_load(stream)
     else:
         style = utils.make_style_dict_yaml(fd, cmap=args.cmap, sort=True, sort_peaky=True)
         logging.warning(
@@ -327,12 +355,14 @@ def main():
             # list
             else:
                 channels = sum([fnmatch.filter(available_channels, _cat) for _cat in args.cats.split(",")], [])
+                print(args.cats.split(","), available_channels)
                 blinds = [
                     True if c in blind_cats else False for c in channels
                 ]
                 savenames = [c for c in channels]
                 channels = [[c] for c in channels]
                 logging.debug(f"Plotting channels: {channels}")
+        assert len(channels) != 0, f"Channel matching failed for --cats '{args.cats}'. Available categories are :{available_channels}"
         assert isinstance(channels[0], list)
         all_channels.extend(channels)
         all_blinds.extend(blinds)
@@ -346,16 +376,18 @@ def main():
     _procs = []
     with Progress(
         TextColumn("[progress.description]{task.description}"),
+        SpinnerColumn(),
         BarColumn(),
         MofNCompleteColumn(),
         TimeRemainingColumn(),
         TimeElapsedColumn(),
     ) as progress:
-        prog_str = (
-            "[red]Plotting (parallel): " if args.multiprocessing else "[red]Plotting: "
+        prog_str_fmt = (
+            "[red]Plotting ({} workers): " if args.multiprocessing > 0 else "[red]Plotting: "
         )
+        prog_str = prog_str_fmt.format("N")
         prog_plotting = progress.add_task(prog_str, total=len(all_channels))
-        semaphore = Semaphore(20 if args.multiprocessing else 0)
+        semaphore = Semaphore(args.multiprocessing)
         for fittype, channel, blind, sname in zip(
             all_types, all_channels, all_blinds, all_savenames
         ):
@@ -377,9 +409,11 @@ def main():
                     clipx=args.clipx,
                     fitDiag_root=rfd,
                     style=style,
-                    cat_info=1,
+                    cat_info=1 if len(channel) < 6 else {s.split(":")[0]:s.split(":")[1] for s in args.cats.split(";")}[sname],
                     chi2=True,
                 )
+                if fig is None:
+                    return None
                 # Styling
                 if args.xlabel is not None:
                     rax.set_xlabel(args.xlabel)
@@ -409,34 +443,42 @@ def main():
 
                 # Save
                 for fmt in format:
-                    logging.debug(f"  Saving: '{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}'")
+                    logging.debug(f"Saving: '{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}'")
                     fig.savefig(
                         f"{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}",
                         format=fmt,
-                        dpi=300,
+                        dpi=args.dpi,
                         bbox_inches="tight",
                         # transparent=True,
                     )
                 if semaphore is not None:
                     semaphore.release()
 
-            if args.multiprocessing:
+            if args.multiprocessing > 0:
                 semaphore.acquire()
-                p = Process(target=mod_plot, args=(semaphore,))
+                p = Process(target=mod_plot, args=(semaphore,), name=sname)
                 _procs.append(p)
                 p.start()
                 time.sleep(0.1)
+                
+                n_running = sum([p.is_alive() for p in _procs])
+                progress.update(
+                    prog_plotting, completed=len(_procs) - n_running, refresh=True, description=prog_str_fmt.format(n_running),
+                )
+                time_check(progress, _procs, 6)
             else:
                 mod_plot()
                 progress.update(prog_plotting, advance=1, refresh=True)
-        if args.multiprocessing:
+        if args.multiprocessing > 0:
             while sum([p.is_alive() for p in _procs]) > 0:
                 n_running = sum([p.is_alive() for p in _procs])
                 progress.update(
-                    prog_plotting, completed=len(_procs) - n_running, refresh=True
+                    prog_plotting, completed=len(_procs) - n_running, refresh=True, description=prog_str_fmt.format(n_running),
                 )
                 time.sleep(0.1)
-        progress.update(prog_plotting, completed=len(all_channels), total=len(all_channels), refresh=True)
+                
+                time_check(progress, _procs, 6)
+        progress.update(prog_plotting, completed=len(all_channels), total=len(all_channels), refresh=True, description=prog_str_fmt.format(0))
 
 
 if __name__ == "__main__":
